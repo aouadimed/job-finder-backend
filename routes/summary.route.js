@@ -7,13 +7,8 @@ const protectedRoute = require("../middleware/protectedRoute");
 
 router.use(protectedRoute.requireLogin);
 
-router
-  .route("/createOrUpdate")
-  .post(summaryController.createOrUpdateSummary);
+router.route("/createOrUpdate").post(summaryController.createOrUpdateSummary);
 
-
-  router
-  .route("/summarie")
-  .get(summaryController.getSummary);
+router.route("/summarie").get(summaryController.getSummary);
 
 module.exports = router;
