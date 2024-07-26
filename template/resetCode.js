@@ -168,10 +168,10 @@ exports.resetCodeContent = (resetCode) => `<!DOCTYPE html>
                   color: #999;
                 "
               >
-              <p style="margin-top: 30px; font-size: 14px; color: #999;">Please do not reply to this email as it is an automated message. Replies to this email will not be read or responded to. If you have any questions or concerns, please contact our customer support team at [support@paradax.com].</p>
+              <p style="margin-top: 30px; font-size: 14px; color: #999;">Please do not reply to this email as it is an automated message. Replies to this email will not be read or responded to. If you have any questions or concerns, please contact our customer support team at [support@aouadi.com].</p>
 
                 <p style="margin: 0">
-                  This email was sent by [Marque Blanche Team].
+                  This email was sent by [Job Finder Team].
                 </p>
               </td>
             </tr>

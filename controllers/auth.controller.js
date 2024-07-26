@@ -9,13 +9,10 @@ const crypto = require("crypto");
 const { sendEmail } = require("../utils/sendEmail");
 const { resetCodeContent } = require("../template/resetCode");
 
-
-
-
-
-const storage = multer.diskStorage({
+// Configure multer for temporary storage
+const tempStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, "../uploads/userimg"));
+    cb(null, path.join(__dirname, "../uploads/temp")); // Temporary storage
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
@@ -23,72 +20,111 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({ storage });
+const upload = multer({ storage: tempStorage });
 
 exports.registerUser = [
   upload.single("profileImg"),
   asyncHandler(async (req, res, next) => {
-    const requiredFields = [
-      "username",
-      "firstName",
-      "lastName",
-      "dateOfBirth",
-      "email",
-      "phone",
-      "gender",
-      "country",
-      "role",
-      "expertise",
-      "password",
-    ];
-    for (const field of requiredFields) {
-      if (!req.body[field]) {
-        return next(new ApiError(`Missing required field: ${field}`, 400));
+    try {
+      const requiredFields = [
+        "username",
+        "firstName",
+        "lastName",
+        "dateOfBirth",
+        "email",
+        "phone",
+        "gender",
+        "country",
+        "role",
+        "expertise",
+        "password",
+        "address"
+      ];
+      for (const field of requiredFields) {
+        if (!req.body[field]) {
+          if (req.file) {
+            fs.unlinkSync(req.file.path); // Delete the uploaded file
+          }
+          return next(new ApiError(`Missing required field: ${field}`, 400));
+        }
       }
+
+      const existingUser = await User.findOne({ email: req.body.email });
+      const existingUsername = await User.findOne({
+        username: req.body.username,
+      });
+
+
+      if (existingUsername) {
+        if (req.file) {
+          fs.unlinkSync(req.file.path); // Delete the uploaded file
+        }
+        return next(new ApiError("Username is already in use", 320));
+      }
+      
+      if (existingUser) {
+        if (req.file) {
+          fs.unlinkSync(req.file.path); // Delete the uploaded file
+        }
+        return next(new ApiError("Email is already in use", 300));
+      }
+
+
+
+      req.hashedPassword = await bcrypt.hash(req.body.password, 12);
+      next();
+    } catch (error) {
+      if (req.file) {
+        fs.unlinkSync(req.file.path); // Delete the uploaded file in case of any error
+      }
+      next(error);
     }
+  }),
+  asyncHandler(async (req, res, next) => {
+    try {
+      // Move the file from temporary storage to final destination
+      let finalFileName = undefined;
+      if (req.file) {
+        const tempPath = req.file.path;
+        const finalPath = path.join(__dirname, "../uploads/userimg", req.file.filename);
+        fs.renameSync(tempPath, finalPath);
+        finalFileName = req.file.filename;
+      }
 
-    const existingUser = await User.findOne({ email: req.body.email });
-    const existingUsername = await User.findOne({
-      username: req.body.username,
-    });
+      const newUser = new User({
+        username: req.body.username,
+        firstName: req.body.firstName,
+        lastName: req.body.lastName,
+        dateOfBirth: req.body.dateOfBirth,
+        email: req.body.email,
+        phone: req.body.phone,
+        gender: req.body.gender,
+        country: req.body.country,
+        role: req.body.role,
+        expertise: JSON.parse(req.body.expertise),
+        password: req.hashedPassword,
+        profileImg: finalFileName,
+        address: req.body.address,
+      });
 
-    if (existingUser) {
-      return next(new ApiError("Email is already in use", 300));
+      await newUser.save();
+
+      const token = generateToken(newUser._id);
+
+      res.status(201).json({
+        message: "User registered successfully",
+        user: newUser,
+        token: token,
+      });
+    } catch (error) {
+      if (req.file) {
+        const tempPath = req.file.path;
+        fs.unlinkSync(tempPath); // Delete the uploaded file in case of any error
+      }
+      next(new ApiError("An error occurred while registering the user", 500));
     }
-
-    if (existingUsername) {
-      return next(new ApiError("Username is already in use", 100));
-    }
-
-    const hashedPassword = await bcrypt.hash(req.body.password, 12);
-
-    const newUser = new User({
-      username: req.body.username,
-      firstName: req.body.firstName,
-      lastName: req.body.lastName,
-      dateOfBirth: req.body.dateOfBirth,
-      email: req.body.email,
-      phone: req.body.phone,
-      gender: req.body.gender,
-      country: req.body.country,
-      role: req.body.role,
-      expertise: JSON.parse(req.body.expertise),
-      password: hashedPassword,
-      profileImg: req.file.filename,
-    });
-
-    await newUser.save();
-
-    const token = generateToken(newUser._id);
-
-    res.status(201).json({
-      message: "User registered successfully",
-      user: newUser,
-      token: token,
-    });
   }),
 ];
-
 
 /* ----------------------------------------------------- */
 /**
@@ -176,7 +212,7 @@ exports.verifyPasswordResetCode = asyncHandler(async (req, res, next) => {
     user.passwordResetExpired.getTime() < Date.now()
   ) {
     // Reset code is wrong or expired
-    return next(new ApiError("Invalid reset code or expired"));
+    return next(new ApiError("Invalid reset code or expired",403));
   }
 
   user.passwordResetVerified = true;

@@ -7,7 +7,6 @@ const authController = require("../controllers/auth.controller");
 const protectedRoute = require("../middleware/protectedRoute");
 //const userController = require("../controllers/user.controller");
 /* ----------------------------------------------------- */
-
 router.post(
   "/register",
   authController.registerUser
@@ -23,7 +22,6 @@ router.post("/forgotPassword", authController.forgotPassword);
 router.post("/verifyResetCode", authController.verifyPasswordResetCode);
 router.put("/resetPassword", authController.resetPassword);
 
-
 /*
 router.put(
   "/updateUserImg",
@@ -33,6 +31,5 @@ router.put(
   userController.resizeImage,
   authController.editUserAvatar
 );*/
-/* ----------------------------------------------------- */
 
 module.exports = router;

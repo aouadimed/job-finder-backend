@@ -6,8 +6,9 @@ const educationRoute = require("./education.route");
 const projectRoute = require("./project.route");
 const languageRoute = require("./language.route");
 const skillsRoute = require("./skill.route");
-
-
+const usersRoute = require("./user.route");
+const contactInfoRoute = require("./contactInfo.route");
+const companyRoute = require("./company.route");
 
 const mountRoutes = (app) => {
   app.use("/api/resume", ResumeRoute);
@@ -18,9 +19,9 @@ const mountRoutes = (app) => {
   app.use("/api/project", projectRoute);
   app.use("/api/language", languageRoute);
   app.use("/api/skill", skillsRoute);
-
-
-
+  app.use("/api/users", usersRoute);
+  app.use("/api/contactinfo", contactInfoRoute);
+  app.use("/api/company", companyRoute);
 
 };
 

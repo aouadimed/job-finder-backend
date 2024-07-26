@@ -13,7 +13,7 @@ exports.sendEmail = async (options) => {
   });
   // Define email options (from , to , subject , body)
   const mailOptions = {
-    from: `Marque Blanche App <${process.env.EMAIL_USERNAME}>`,
+    from: `Job Finder App <${process.env.EMAIL_USERNAME}>`,
     to: options.email,
     subject: options.subject,
     text: options.message,
