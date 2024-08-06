@@ -97,10 +97,10 @@ exports.deleteJobOffer = asyncHandler(async (req, res, next) => {
  * @Desc   : Get all job offers with pagination, search, and filtering
  * @Route  : @Get /api/job-offers
  * @Access : Private
- */  
+ */
 
 exports.getJobOffers = asyncHandler(async (req, res, next) => {
-  const { page = 1, limit = 4, search = '', filter = '0' } = req.query;
+  const { page = 1, limit = 4, search = "", filter = "0" } = req.query;
   const { user } = req;
 
   const pageNumber = parseInt(page, 10) || 1;
@@ -108,24 +108,22 @@ exports.getJobOffers = asyncHandler(async (req, res, next) => {
 
   let query = { user: user._id };
 
-  // Filter based on active status
-  if (filter === '1') {
-    query.active = true; // Active jobs
-  } else if (filter === '2') {
-    query.active = false; // Inactive jobs
+  if (filter === "1") {
+    query.active = true;
+  } else if (filter === "2") {
+    query.active = false;
   }
 
   try {
-    // Handle search by category or subcategory names
     if (search) {
       const matchingCategories = await Category.find({
         $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { 'subcategories.name': { $regex: search, $options: 'i' } }
-        ]
-      }).select('_id');
+          { name: { $regex: search, $options: "i" } },
+          { "subcategories.name": { $regex: search, $options: "i" } },
+        ],
+      }).select("_id");
 
-      const categoryIds = matchingCategories.map(cat => cat._id);
+      const categoryIds = matchingCategories.map((cat) => cat._id);
 
       if (categoryIds.length > 0) {
         query.categoryId = { $in: categoryIds };
@@ -134,22 +132,20 @@ exports.getJobOffers = asyncHandler(async (req, res, next) => {
       }
     }
 
-    // Find job offers with pagination
     const jobOffers = await JobOffer.find(query)
-      .populate('categoryId', 'name subcategories')
+      .populate("categoryId", "name subcategories")
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber);
 
-    // Extract category and subcategory names
-    const jobOffersWithNames = jobOffers.map(job => {
+    const jobOffersWithNames = jobOffers.map((job) => {
       const category = job.categoryId;
-      // Find the matching subcategory based on job.subcategoryId
-      const subcategory = category.subcategories.find(sub => sub._id.toString() === job.subcategoryId.toString());
+      const subcategory = category.subcategories.find(
+        (sub) => sub._id.toString() === job.subcategoryId.toString()
+      );
       return {
-        ...job._doc, // Spread the original job document
+        ...job._doc,
         categoryName: category.name,
-        subcategoryName: subcategory ? subcategory.name : 'Unknown Subcategory',
-        // Remove the categoryId and subcategories to avoid returning the entire list
+        subcategoryName: subcategory ? subcategory.name : "Unknown Subcategory",
         categoryId: undefined,
       };
     });
@@ -167,23 +163,10 @@ exports.getJobOffers = asyncHandler(async (req, res, next) => {
       company,
     });
   } catch (error) {
-    console.error('Error fetching job offers:', error);
-    res.status(500).json({ error: 'Server Error' });
+    console.error("Error fetching job offers:", error);
+    res.status(500).json({ error: "Server Error" });
   }
 });
-
-  
-
-
-
-
-
-
-
-
-
-
-
 
 
 /**
@@ -193,48 +176,39 @@ exports.getJobOffers = asyncHandler(async (req, res, next) => {
  */
 exports.getJobOffer = asyncHandler(async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, search, filter = "0" } = req.query;
+    const jobOfferId = req.params.id;
 
-    const pageNumber = parseInt(page, 10);
-    const limitNumber = parseInt(limit, 10);
-
-    let query = {};
-
-    if (filter === "1") {
-      query.active = true;
-    } else if (filter === "2") {
-      query.active = false;
+    const jobOffer = await JobOffer.findById(jobOfferId).populate('categoryId', 'name subcategories');
+    
+    if (!jobOffer) {
+      return res.status(404).json({ error: 'Job offer not found' });
     }
 
-    if (search) {
-      try {
-        const searchCriteria = JSON.parse(decodeURIComponent(search));
-        if (Array.isArray(searchCriteria)) {
-          query.$or = searchCriteria.map(({ category, subcategory }) => ({
-            categoryIndex: category,
-            subcategoryIndex: subcategory,
-          }));
-        }
-      } catch (err) {
-        console.error("Error parsing search query:", err);
-      }
-    }
+    const category = jobOffer.categoryId;
+    const subcategory = category.subcategories.find(
+      (sub) => sub._id.toString() === jobOffer.subcategoryId.toString()
+    );
 
-    const jobOffers = await JobOffer.find(query)
-      .skip((pageNumber - 1) * limitNumber)
-      .limit(limitNumber);
+    const company = await Company.findOne({ user: jobOffer.user });
 
-    const totalCount = await JobOffer.countDocuments(query);
-    res.json({
-      jobOffers,
-      totalPages: Math.ceil(totalCount / limitNumber),
-      currentPage: pageNumber,
-    });
+    const jobOfferWithDetails = {
+      ...jobOffer._doc,
+      subcategoryName: subcategory ? subcategory.name : "Unknown Subcategory",
+      companyName: company ? company.companyName : "Unknown Company",
+      companyCountry: company ? company.country : "Unknown Country",
+      companyAbout : company ? company.aboutCompany : "Unknown About",
+      logoName: company ? `${process.env.BASE_URL}/companylogos/${company.logoName}` : null,
+      categoryId: undefined,
+      subcategoryId: undefined,
+    };
+
+    res.status(200).json(jobOfferWithDetails);
   } catch (error) {
-    console.error("Error fetching job offers:", error);
-    res.status(500).json({ error: "Server Error" });
+    console.error('Error fetching job offer:', error);
+    next(new ApiError('Server Error', 500));
   }
 });
+
 
 /**
  * @Desc   : Set a job offer as active/inactive
@@ -256,3 +230,58 @@ exports.toggleJobOfferActive = asyncHandler(async (req, res, next) => {
 
   res.status(200).json(jobOffer);
 });
+
+
+/**
+ * @Desc   : Get the most recently added job offers with company name and country
+ * @Route  : @Get /api/job-offers/recent
+ * @Access : Public
+ */
+exports.getRecentJobOffersAdded = asyncHandler(async (req, res, next) => {
+  const { page = 1, limit = 6 } = req.query;
+
+  const pageNumber = parseInt(page, 10) || 1;
+  const limitNumber = parseInt(limit, 10) || 10;
+
+  try {
+    const totalJobOffers = await JobOffer.countDocuments();
+    const recentJobOffers = await JobOffer.find()
+      .sort({ createdAt: -1 })
+      .skip((pageNumber - 1) * limitNumber)
+      .limit(limitNumber)
+      .populate("categoryId", "name subcategories");
+
+    const jobOffersWithNames = await Promise.all(
+      recentJobOffers.map(async (jobOffer) => {
+        const category = jobOffer.categoryId;
+        const subcategory = category.subcategories.find(
+          (sub) => sub._id.toString() === jobOffer.subcategoryId.toString()
+        );
+
+        const company = await Company.findOne({ user: jobOffer.user });
+
+        return {
+          id: jobOffer._id,
+          employmentTypeIndex: jobOffer.employmentTypeIndex,
+          locationTypeIndex: jobOffer.locationTypeIndex,
+          subcategoryName: subcategory ? subcategory.name : "Unknown Subcategory",
+          companyName: company ? company.companyName : "Unknown Company",
+          companyCountry: company ? company.country : "Unknown Country",
+          logoName: company ? `${process.env.BASE_URL}/companylogos/${company.logoName}` : null,
+          categoryId: undefined,
+          subcategoryId: undefined,
+        };
+      })
+    );
+
+    res.status(200).json({
+      jobOffers: jobOffersWithNames,
+      totalPages: Math.ceil(totalJobOffers / limitNumber),
+      currentPage: pageNumber,
+    });
+  } catch (error) {
+    console.error("Error fetching recent job offers:", error);
+    next(new ApiError("Server Error", 500));
+  }
+});
+

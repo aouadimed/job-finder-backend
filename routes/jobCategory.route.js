@@ -9,4 +9,7 @@ router.use(protectedRoute.requireLogin);
 
 router.post('/job-category',jobCategoriesController.getJobCategory);
 
+router.get('/job-category',jobCategoriesController.getMostAssignedCategories);
+
+
 module.exports = router;

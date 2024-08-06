@@ -11,6 +11,8 @@ const contactInfoRoute = require("./contactInfo.route");
 const companyRoute = require("./company.route");
 const jobOfferRoute = require("./jobOffer.route");
 const jobCategoriesRoute = require("./jobCategory.route");
+const saveJobRoute = require("./saveJob.route");
+
 
 const mountRoutes = (app) => {
   app.use("/api/resume", ResumeRoute);
@@ -26,6 +28,8 @@ const mountRoutes = (app) => {
   app.use("/api/company", companyRoute);
   app.use("/api/job-offers", jobOfferRoute);
   app.use("/api/job-category", jobCategoriesRoute);
+  app.use("/api/saved", saveJobRoute);
+
 
 };
 

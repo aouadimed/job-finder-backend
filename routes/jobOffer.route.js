@@ -6,7 +6,8 @@ const {
   deleteJobOffer,
   getJobOffers,
   getJobOffer,
-  toggleJobOfferActive
+  toggleJobOfferActive,
+  getRecentJobOffersAdded
 } = require("../controllers/jobOffer.controller");
 const protectedRoute = require("../middleware/protectedRoute");
 
@@ -23,6 +24,8 @@ router.route("/job-offers/:id").delete(deleteJobOffer);
 router.route("/job-offers").get(getJobOffers);
 
 router.route("/job-offers/:id").get(getJobOffer);
+
+router.route("/recent").get(getRecentJobOffersAdded);
 
 router.route("/job-offers/:id/active").patch(toggleJobOfferActive);
 
