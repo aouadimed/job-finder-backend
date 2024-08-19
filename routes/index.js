@@ -12,6 +12,9 @@ const companyRoute = require("./company.route");
 const jobOfferRoute = require("./jobOffer.route");
 const jobCategoriesRoute = require("./jobCategory.route");
 const saveJobRoute = require("./saveJob.route");
+const organizationActivity = require("./organization_activity.route");
+const profilRoute = require("./profil.route");
+const jobApplicationRoute = require("./job_application.route");
 
 
 const mountRoutes = (app) => {
@@ -29,6 +32,9 @@ const mountRoutes = (app) => {
   app.use("/api/job-offers", jobOfferRoute);
   app.use("/api/job-category", jobCategoriesRoute);
   app.use("/api/saved", saveJobRoute);
+  app.use("/api/organization_activity", organizationActivity);
+  app.use("/api/profil", profilRoute);
+  app.use("/api/JobApplication", jobApplicationRoute);
 
 
 };

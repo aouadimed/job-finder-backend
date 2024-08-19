@@ -2,7 +2,7 @@ const asyncHandler = require("express-async-handler");
 const JobOffer = require("../models/jobOffer.model");
 const Company = require("../models/company.model");
 const Category = require("../models/jobCategory.model");
-
+const JobApplication = require("../models/job_application.model");
 const ApiError = require("../utils/apiError");
 
 /**
@@ -93,14 +93,15 @@ exports.deleteJobOffer = asyncHandler(async (req, res, next) => {
   res.status(200).json({ message: "Job offer deleted successfully" });
 });
 
+
+
 /**
  * @Desc   : Get all job offers with pagination, search, and filtering
  * @Route  : @Get /api/job-offers
  * @Access : Private
  */
-
 exports.getJobOffers = asyncHandler(async (req, res, next) => {
-  const { page = 1, limit = 4, search = "", filter = "0" } = req.query;
+  const { page = 1, limit = 10, search = "", filter = "0" } = req.query;
   const { user } = req;
 
   const pageNumber = parseInt(page, 10) || 1;
@@ -135,29 +136,40 @@ exports.getJobOffers = asyncHandler(async (req, res, next) => {
     const jobOffers = await JobOffer.find(query)
       .populate("categoryId", "name subcategories")
       .skip((pageNumber - 1) * limitNumber)
-      .limit(limitNumber);
+      .limit(limitNumber)
+      .lean(); // Using lean() to get plain JavaScript objects
 
-    const jobOffersWithNames = jobOffers.map((job) => {
+    // Get the applicant count for each job offer
+    const jobOfferIds = jobOffers.map((job) => job._id);
+    const applicantCounts = await JobApplication.aggregate([
+      { $match: { job: { $in: jobOfferIds } } },
+      { $group: { _id: "$job", count: { $sum: 1 } } },
+    ]);
+
+    // Map the applicant counts to the respective job offers
+    const jobOffersWithDetails = jobOffers.map((job) => {
       const category = job.categoryId;
       const subcategory = category.subcategories.find(
         (sub) => sub._id.toString() === job.subcategoryId.toString()
       );
+      const applicantCount = applicantCounts.find(
+        (count) => count._id.toString() === job._id.toString()
+      )?.count || 0;
+
       return {
-        ...job._doc,
+        ...job,
         categoryName: category.name,
         subcategoryName: subcategory ? subcategory.name : "Unknown Subcategory",
         categoryId: undefined,
+        applicantCount,
       };
     });
 
-    // Get total job offers count for pagination
     const totalCount = await JobOffer.countDocuments(query);
-    // Fetch the company information
     const company = await Company.findOne({ user: user._id });
 
-    // Send the response
     res.json({
-      jobOffers: jobOffersWithNames,
+      jobOffers: jobOffersWithDetails,
       totalPages: Math.ceil(totalCount / limitNumber),
       currentPage: pageNumber,
       company,
@@ -177,11 +189,15 @@ exports.getJobOffers = asyncHandler(async (req, res, next) => {
 exports.getJobOffer = asyncHandler(async (req, res, next) => {
   try {
     const jobOfferId = req.params.id;
+    const userId = req.user._id;
 
-    const jobOffer = await JobOffer.findById(jobOfferId).populate('categoryId', 'name subcategories');
-    
+    const jobOffer = await JobOffer.findById(jobOfferId).populate(
+      "categoryId",
+      "name subcategories"
+    );
+
     if (!jobOffer) {
-      return res.status(404).json({ error: 'Job offer not found' });
+      return res.status(404).json({ error: "Job offer not found" });
     }
 
     const category = jobOffer.categoryId;
@@ -190,25 +206,30 @@ exports.getJobOffer = asyncHandler(async (req, res, next) => {
     );
 
     const company = await Company.findOne({ user: jobOffer.user });
-
+    const jobApplication = await JobApplication.findOne({
+      user: userId,
+      job: jobOfferId,
+    });
     const jobOfferWithDetails = {
       ...jobOffer._doc,
       subcategoryName: subcategory ? subcategory.name : "Unknown Subcategory",
       companyName: company ? company.companyName : "Unknown Company",
       companyCountry: company ? company.country : "Unknown Country",
-      companyAbout : company ? company.aboutCompany : "Unknown About",
-      logoName: company ? `${process.env.BASE_URL}/companylogos/${company.logoName}` : null,
+      companyAbout: company ? company.aboutCompany : "Unknown About",
+      applicationStatus: jobApplication ? jobApplication.status : "Not Applied",
+      logoName: company
+        ? `${process.env.BASE_URL}/companylogos/${company.logoName}`
+        : null,
       categoryId: undefined,
       subcategoryId: undefined,
     };
 
     res.status(200).json(jobOfferWithDetails);
   } catch (error) {
-    console.error('Error fetching job offer:', error);
-    next(new ApiError('Server Error', 500));
+    console.error("Error fetching job offer:", error);
+    next(new ApiError("Server Error", 500));
   }
 });
-
 
 /**
  * @Desc   : Set a job offer as active/inactive
@@ -230,6 +251,8 @@ exports.toggleJobOfferActive = asyncHandler(async (req, res, next) => {
 
   res.status(200).json(jobOffer);
 });
+
+
 
 
 /**
@@ -264,10 +287,14 @@ exports.getRecentJobOffersAdded = asyncHandler(async (req, res, next) => {
           id: jobOffer._id,
           employmentTypeIndex: jobOffer.employmentTypeIndex,
           locationTypeIndex: jobOffer.locationTypeIndex,
-          subcategoryName: subcategory ? subcategory.name : "Unknown Subcategory",
+          subcategoryName: subcategory
+            ? subcategory.name
+            : "Unknown Subcategory",
           companyName: company ? company.companyName : "Unknown Company",
           companyCountry: company ? company.country : "Unknown Country",
-          logoName: company ? `${process.env.BASE_URL}/companylogos/${company.logoName}` : null,
+          logoName: company
+            ? `${process.env.BASE_URL}/companylogos/${company.logoName}`
+            : null,
           categoryId: undefined,
           subcategoryId: undefined,
         };
@@ -284,4 +311,3 @@ exports.getRecentJobOffersAdded = asyncHandler(async (req, res, next) => {
     next(new ApiError("Server Error", 500));
   }
 });
-
