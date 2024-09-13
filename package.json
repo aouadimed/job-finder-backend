@@ -29,6 +29,7 @@
     "pdf-to-text": "^0.0.7",
     "resume-parser": "^1.1.0",
     "sharp": "^0.33.2",
+    "socket.io": "^4.7.5",
     "uuid": "^9.0.0"
   },
   "devDependencies": {

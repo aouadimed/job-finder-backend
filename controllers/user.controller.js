@@ -20,7 +20,7 @@ const ApiError = require("../utils/apiError");
       const fullUser = {
         firstName: user.firstName,
         lastName: user.lastName,
-        profilImg: `${baseUrl}/userimg/${user.profileImg}`
+        profilImg: user.profileImg ? `${baseUrl}/userimg/${user.profileImg}` : "undefined"
       };
   
       res.status(200).json(fullUser);

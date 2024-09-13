@@ -9,6 +9,7 @@ const compression = require("compression");
 const dbConnection = require("./config/db");
 const ApiError = require("./utils/apiError");
 const globalError = require("./middleware/errorMiddleware");
+const initializeSocket = require("./socket");
 
 const app = express();
 /// CORS : enable other domain to access api 
@@ -51,6 +52,9 @@ app.use(globalError);
 const server = app.listen(process.env.PORT, "0.0.0.0", () =>
   console.log(`Server is listen to port ${process.env.PORT} 🤷‍♂️🤷‍♂️`)
 );
+
+
+initializeSocket(server);
 
 // ? Handle Rejection outside Express !
 process.on("unhandledRejection", (err) => {

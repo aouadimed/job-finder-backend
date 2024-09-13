@@ -10,4 +10,8 @@ router.post('/JobApplication', jobApplicationController.createJobApplication);
 
 router.get('/JobApplication/:jobOfferId', jobApplicationController.getApplicantsForJobOffer);
 
+router.patch('/JobApplication/:jobApplicationId', jobApplicationController.updateJobApplicationStatus);
+
+router.get('/JobApplication', jobApplicationController.getJobApplications);
+
 module.exports = router;

@@ -7,13 +7,12 @@ const Skill = require('../models/skill.model');
 const User = require('../models/user.model');
 const ApiError = require('../utils/apiError');
 
-// Dynamic weights for CV sections
 const SECTION_WEIGHTS = {
   CONTACT_INFO: 20,
   SUMMARY: 10,
   WORK_EXPERIENCE: 25,
   EDUCATION: 20,
-  SKILL: 5, // Weight each skill slightly lower to encourage multiple entries
+  SKILL: 5, // Each skill adds 5%, max 25% for 5 skills
 };
 
 // @desc    Calculate CV Completion Percentage
@@ -33,8 +32,8 @@ exports.calculateCVCompletion = asyncHandler(async (req, res, next) => {
       User.findById(userId).select('email phone address'),
     ]);
 
-    // Check for missing sections and their corresponding status codes
-    const { missingSections, statusCodes } = checkMissingSections({
+    // Check for missing sections and prepare error messages
+    const { missingSections, errors } = checkMissingSections({
       contactInfo,
       summary,
       workExperiences,
@@ -52,13 +51,20 @@ exports.calculateCVCompletion = asyncHandler(async (req, res, next) => {
       skills,
     });
 
+    // Always return 200 but include error messages if any sections are missing
     if (missingSections.length > 0) {
-      // If there are missing sections, return the first status code
-      return res.status(statusCodes[0]).json({ completionPercentage });
-    } else {
-      // If no sections are missing, return the completion percentage with a 200 status
-      res.status(200).json({ completionPercentage });
+      return res.status(200).json({
+        completionPercentage,
+        errors, // Array of error messages for missing sections
+        message: 'Some sections are incomplete. Please fill in the missing sections.',
+      });
     }
+
+    // If no sections are missing, return the completion percentage with a success message
+    res.status(200).json({
+      completionPercentage,
+      message: 'CV is fully completed.',
+    });
   } catch (error) {
     return next(new ApiError('Failed to calculate CV completion', 500));
   }
@@ -77,32 +83,32 @@ function calculateCompletion({ contactInfo, summary, workExperiences, educations
   return completion;
 }
 
-// Helper function to check for missing sections and return appropriate status codes
+// Helper function to check for missing sections and return appropriate error messages
 function checkMissingSections({ contactInfo, summary, workExperiences, educations, skills, user }) {
   const missingSections = [];
-  const statusCodes = [];
+  const errors = [];
 
   // Check for contact info in either ContactInfo or User model
   if (!contactInfo && (!user.email || !user.phone || !user.address)) {
     missingSections.push('Contact Info');
-    statusCodes.push(400); // Bad Request: Contact Info is missing
+    errors.push('Contact Info is incomplete. Please provide email, phone, and address.');
   }
   if (!summary) {
     missingSections.push('Summary');
-    statusCodes.push(401); // Unauthorized: Summary is missing
+    errors.push('Summary section is missing.');
   }
   if (workExperiences.length === 0) {
     missingSections.push('Work Experience');
-    statusCodes.push(402); // Payment Required: Work Experience is missing
+    errors.push('Work Experience section is missing.');
   }
   if (educations.length === 0) {
     missingSections.push('Education');
-    statusCodes.push(403); // Forbidden: Education is missing
+    errors.push('Education section is missing.');
   }
   if (skills.length < 5) {
     missingSections.push('Skills (Minimum 5 required)');
-    statusCodes.push(422); // Unprocessable Entity: Not enough skills
+    errors.push('At least 5 skills are required.');
   }
 
-  return { missingSections, statusCodes };
+  return { missingSections, errors };
 }

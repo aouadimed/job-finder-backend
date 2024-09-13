@@ -29,8 +29,8 @@ const JobApplicationSchema = new Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'reviewed', 'accepted', 'rejected'],
-    default: 'pending',
+    enum: ['sent', 'pending', 'rejected', 'accepted'],
+    default: 'sent',
   },
 }, {
   timestamps: true,
