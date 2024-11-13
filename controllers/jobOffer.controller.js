@@ -97,7 +97,7 @@ exports.deleteJobOffer = asyncHandler(async (req, res, next) => {
 
 /**
  * @Desc   : Get all job offers with pagination, search, and filtering
- * @Route  : @Get /api/job-offers
+ * @Route  : GET /api/job-offers
  * @Access : Private
  */
 exports.getJobOffers = asyncHandler(async (req, res, next) => {
@@ -135,18 +135,19 @@ exports.getJobOffers = asyncHandler(async (req, res, next) => {
 
     const jobOffers = await JobOffer.find(query)
       .populate("categoryId", "name subcategories")
+      .sort({ createdAt: -1 }) // Sort by createdAt descending
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber)
       .lean(); // Using lean() to get plain JavaScript objects
 
-    // Get the applicant count for each job offer
+    // Get the applicant count for each job offer, including those with zero applicants
     const jobOfferIds = jobOffers.map((job) => job._id);
     const applicantCounts = await JobApplication.aggregate([
-      { $match: { job: { $in: jobOfferIds } } },
+      { $match: { job: { $in: jobOfferIds }, status: "sent" } },
       { $group: { _id: "$job", count: { $sum: 1 } } },
     ]);
 
-    // Map the applicant counts to the respective job offers
+    // Map the applicant counts to the respective job offers, defaulting to 0 if no applicants
     const jobOffersWithDetails = jobOffers.map((job) => {
       const category = job.categoryId;
       const subcategory = category.subcategories.find(
@@ -232,21 +233,22 @@ exports.getJobOffer = asyncHandler(async (req, res, next) => {
 });
 
 /**
- * @Desc   : Set a job offer as active/inactive
+ * @Desc   : Toggle a job offer's active status
  * @Route  : @Patch /api/job-offers/:id/active
  * @Access : Private
  */
 exports.toggleJobOfferActive = asyncHandler(async (req, res, next) => {
   const { user } = req;
   const { id } = req.params;
-  const { active } = req.body;
 
+  // Find the job offer associated with the user
   const jobOffer = await JobOffer.findOne({ _id: id, user: user._id });
   if (!jobOffer) {
     return next(new ApiError("Job offer not found or not authorized", 404));
   }
 
-  jobOffer.active = active;
+  // Toggle the active status
+  jobOffer.active = !jobOffer.active;
   await jobOffer.save();
 
   res.status(200).json(jobOffer);

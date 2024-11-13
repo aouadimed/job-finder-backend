@@ -14,4 +14,7 @@ router.patch('/JobApplication/:jobApplicationId', jobApplicationController.updat
 
 router.get('/JobApplication', jobApplicationController.getJobApplications);
 
+router.post('/JobApplication/:jobApplicationId', jobApplicationController.notifyApplicantReview);
+
+
 module.exports = router;

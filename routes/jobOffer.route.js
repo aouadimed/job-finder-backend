@@ -27,6 +27,6 @@ router.route("/job-offers/:id").get(getJobOffer);
 
 router.route("/recent").get(getRecentJobOffersAdded);
 
-router.route("/job-offers/:id/active").patch(toggleJobOfferActive);
+router.route("/job-offers/:id/active").put(toggleJobOfferActive);
 
 module.exports = router;
