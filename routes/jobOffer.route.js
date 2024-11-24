@@ -8,6 +8,8 @@ const {
   getJobOffer,
   toggleJobOfferActive,
   getRecentJobOffersAdded
+,
+getJobOffersForSearsh
 } = require("../controllers/jobOffer.controller");
 const protectedRoute = require("../middleware/protectedRoute");
 

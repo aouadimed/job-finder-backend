@@ -407,3 +407,158 @@ exports.notifyApplicantReview = asyncHandler(async (req, res, next) => {
     next(new ApiError("Server Error", 500));
   }
 });
+
+
+/**
+ * @Desc   : Get recent applicants for all job offers created by a recruiter
+ * @Route  : GET /api/job-applications/recent
+ * @Access : Private (Recruiter Only)
+ */
+exports.getRecentApplicants = asyncHandler(async (req, res, next) => {
+  try {
+    const recruiterId = req.user._id; // Assuming `req.user` contains the authenticated recruiter's details
+    const { page = 1, limit = 5 } = req.query;
+
+    const pageNumber = parseInt(page, 10) || 1;
+    const limitNumber = parseInt(limit, 10) || 10;
+    const skip = (pageNumber - 1) * limitNumber;
+
+    // Fetch all job offers created by this recruiter
+    const jobOffers = await JobOffer.find({ user: recruiterId })
+      .populate('categoryId', 'name subcategories') // Populate category details
+      .select('_id categoryId subcategoryId'); // Include only relevant fields
+
+    const jobOfferIds = jobOffers.map((offer) => offer._id);
+
+    if (jobOfferIds.length === 0) {
+      return res.status(200).json({
+        totalApplicants: 0,
+        totalPages: 0,
+        currentPage: pageNumber,
+        applications: [],
+      });
+    }
+
+    // Query applications for the fetched job offers
+    const query = {status: 'sent', job: { $in: jobOfferIds } };
+    const totalApplicants = await JobApplication.countDocuments(query);
+
+    const applications = await JobApplication.find(query)
+      .sort( {createdAt: -1})
+      .populate('user', 'firstName lastName profileImg email phone address') // Populate user details
+      .skip(skip)
+      .limit(limitNumber)
+      .lean();
+
+    // Enhance application details
+    const applicationsWithDetails = await Promise.all(
+      applications.map(async (app) => {
+        const user = app.user;
+
+        // Find the corresponding job offer to get category and subcategory details
+        const jobOffer = jobOffers.find((offer) =>
+          offer._id.toString() === app.job.toString()
+        );
+
+        if (!jobOffer) return app; // Fallback if no jobOffer is found (unlikely)
+
+        const category = jobOffer.categoryId;
+        const subcategory = category?.subcategories?.find(
+          (sub) => sub._id.toString() === jobOffer.subcategoryId.toString()
+        );
+
+        const jobTitle = subcategory?.name || 'Unknown Title'; 
+        if (app.useProfile) {
+          const [
+            contactInfo,
+            education,
+            languages,
+            projects,
+            skills,
+            summary,
+            workExperience,
+          ] = await Promise.all([
+            ContactInfo.findOne({ user: user._id }).lean(),
+            Education.find({ user: user._id }).lean(),
+            Language.find({ user: user._id }).lean(),
+            Project.find({ user: user._id }).lean(),
+            Skill.find({ user: user._id }).lean(),
+            Summary.findOne({ user: user._id }).lean(),
+            WorkExperience.find({ user: user._id }).lean(),
+          ]);
+
+          const contactDetails = contactInfo || {
+            email: user.email,
+            phone: user.phone,
+            address: user.address,
+          };
+
+          return {
+            _id: app._id,
+            user: {
+              _id: user._id,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              profileImg: user.profileImg
+                ? `${process.env.BASE_URL}/userimg/${user.profileImg}`
+                : null,
+            },
+            job: jobTitle,
+            useProfile: app.useProfile,
+            cvUpload: app.cvUpload
+              ? `${process.env.BASE_URL}/resume/${app.cvUpload}`
+              : null,
+            motivationLetter: app.motivationLetter,
+            status: app.status,
+            createdAt: app.createdAt,
+            updatedAt: app.updatedAt,
+            profileDetails: {
+              contactInfo: contactDetails,
+              education,
+              languages,
+              projects,
+              skills,
+              summary,
+              workExperience,
+              name: `${user.firstName} ${user.lastName}`,
+              profileImg: user.profileImg
+                ? `${process.env.BASE_URL}/userimg/${user.profileImg}`
+                : null,
+            },
+          };
+        } else {
+          return {
+            _id: app._id,
+            user: {
+              _id: user._id,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              profileImg: user.profileImg
+                ? `${process.env.BASE_URL}/userimg/${user.profileImg}`
+                : null,
+            },
+            job: jobTitle,
+            useProfile: app.useProfile,
+            cvUpload: app.cvUpload
+              ? `${process.env.BASE_URL}/resume/${app.cvUpload}`
+              : null,
+            motivationLetter: app.motivationLetter,
+            status: app.status,
+            createdAt: app.createdAt,
+            updatedAt: app.updatedAt,
+          };
+        }
+      })
+    );
+
+    res.status(200).json({
+      totalApplicants,
+      totalPages: Math.ceil(totalApplicants / limitNumber),
+      currentPage: pageNumber,
+      applications: applicationsWithDetails,
+    });
+  } catch (error) {
+    console.error('Error fetching recent applicants:', error);
+    next(new ApiError('Server Error', 500));
+  }
+});

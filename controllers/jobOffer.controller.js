@@ -270,7 +270,7 @@ exports.getRecentJobOffersAdded = asyncHandler(async (req, res, next) => {
 
   try {
     const totalJobOffers = await JobOffer.countDocuments();
-    const recentJobOffers = await JobOffer.find()
+    const recentJobOffers = await JobOffer.find({active : true})
       .sort({ createdAt: -1 })
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber)
@@ -313,3 +313,4 @@ exports.getRecentJobOffersAdded = asyncHandler(async (req, res, next) => {
     next(new ApiError("Server Error", 500));
   }
 });
+

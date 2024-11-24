@@ -16,6 +16,8 @@ const organizationActivity = require("./organization_activity.route");
 const profilRoute = require("./profil.route");
 const jobApplicationRoute = require("./job_application.route");
 const chatRoute = require("./chat.route");
+const filterRoute = require("./filter.route");
+
 
 
 const mountRoutes = (app) => {
@@ -37,6 +39,7 @@ const mountRoutes = (app) => {
   app.use("/api/profil", profilRoute);
   app.use("/api/JobApplication", jobApplicationRoute);
   app.use("/api/chat", chatRoute);
+  app.use("/api/filter", filterRoute);
 
 };
 

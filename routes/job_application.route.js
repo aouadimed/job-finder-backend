@@ -16,5 +16,6 @@ router.get('/JobApplication', jobApplicationController.getJobApplications);
 
 router.post('/JobApplication/:jobApplicationId', jobApplicationController.notifyApplicantReview);
 
+router.get('/recent', jobApplicationController.getRecentApplicants);
 
 module.exports = router;
