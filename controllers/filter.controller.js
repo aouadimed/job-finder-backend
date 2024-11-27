@@ -303,44 +303,30 @@ const applyFilters = {
   search: async (filters, query) => {
     if (filters.search && filters.search.trim() !== "") {
       const search = filters.search.trim();
+  
 
-      // Find matching subcategories
       const matchingCategories = await Category.find({
         "subcategories.name": { $regex: search, $options: "i" },
       }).select("subcategories._id subcategories.name");
+  
 
-      // Extract matching subcategory IDs
       const subcategoryIds = matchingCategories
         .flatMap((cat) => cat.subcategories || [])
         .filter((sub) => new RegExp(search, "i").test(sub.name))
         .map((sub) => String(sub._id));
-
+  
       console.log("Matching Subcategory IDs:", subcategoryIds);
+  
 
-      if (subcategoryIds.length > 0) {
-        query.$and.push({ subcategoryId: { $in: subcategoryIds } });
-      }
-
-      if (search && search.trim()) {
-        query.$and.push({
-          $or: [
-            {
-              $and: [
-                { jobDescription: { $regex: search, $options: "i" } },
-                { jobDescription: { $exists: true } },
-              ],
-            },
-            {
-              $and: [
-                { minimumQualifications: { $regex: search, $options: "i" } },
-                { minimumQualifications: { $exists: true } },
-              ],
-            },
-          ],
-        });
-      }
+      query.$and.push({
+        $or: [
+          { subcategoryId: { $in: subcategoryIds } },
+          { jobDescription: { $regex: search, $options: "i" } },
+          { minimumQualifications: { $regex: search, $options: "i" } }, 
+        ],
+      });
     }
-  },
+  },  
 };
 const filterJobOffers = async (req, res) => {
   try {
@@ -350,7 +336,7 @@ const filterJobOffers = async (req, res) => {
     const pageNumber = parseInt(page, 10) || 1;
     const limitNumber = parseInt(limit, 10) || 10;
 
-    const query = { $and: [] };
+    const query = { $and: [{ active: true }] };
 
     console.log("Filters received:", filters);
 
@@ -378,9 +364,11 @@ const filterJobOffers = async (req, res) => {
 
     console.log("Final Query:", JSON.stringify(query, null, 2));
 
-    const jobOffers = await JobOffer.find(query.$and && query.$and.length > 0 ? query : {})
-      .sort({ createdAt: -1 })
-      .skip((pageNumber - 1) * limitNumber)
+    const jobOffers = await JobOffer.find(
+      query.$and && query.$and.length > 0 ? query : {}
+    )
+    .sort({ createdAt: -1, _id: -1 })
+    .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber)
       .populate("categoryId", "name subcategories");
 
@@ -414,8 +402,9 @@ const filterJobOffers = async (req, res) => {
     res.status(200).json({
       jobOffers: jobOffersWithDetails,
       totalPages: Math.ceil(
-        (await JobOffer.countDocuments(query.$and && query.$and.length > 0 ? query : {})) /
-          limitNumber
+        (await JobOffer.countDocuments(
+          query.$and && query.$and.length > 0 ? query : {}
+        )) / limitNumber
       ),
       currentPage: pageNumber,
     });

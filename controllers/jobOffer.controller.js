@@ -2,8 +2,9 @@ const asyncHandler = require("express-async-handler");
 const JobOffer = require("../models/jobOffer.model");
 const Company = require("../models/company.model");
 const Category = require("../models/jobCategory.model");
-const JobApplication = require("../models/job_application.model");
 const ApiError = require("../utils/apiError");
+const SavedJob = require("../models/saveJob.model");
+const JobApplication = require("../models/job_application.model");
 
 /**
  * @Desc   : Create a job offer
@@ -70,6 +71,27 @@ exports.updateJobOffer = asyncHandler(async (req, res, next) => {
     return next(new ApiError("Job offer not found or not authorized", 404));
   }
 
+
+  // Validate categoryId if it is being updated
+  if (updateData.categoryId) {
+    console.log(updateData.categoryId);
+
+    const category = await Category.findById(updateData.categoryId);
+    if (!category) {
+      return next(new ApiError("Invalid category ID", 400));
+    }
+
+    // Validate subcategoryId if it is being updated
+    if (updateData.subcategoryId) {
+      const subcategory = category.subcategories.find(
+        (sub) => sub._id.toString() === updateData.subcategoryId
+      );
+      if (!subcategory) {
+        return next(new ApiError("Invalid subcategory ID", 400));
+      }
+    }
+  }
+
   Object.assign(jobOffer, updateData);
   await jobOffer.save();
 
@@ -85,18 +107,48 @@ exports.deleteJobOffer = asyncHandler(async (req, res, next) => {
   const { user } = req;
   const { id } = req.params;
 
-  const jobOffer = await JobOffer.findOneAndDelete({ _id: id, user: user._id });
-  if (!jobOffer) {
-    return next(new ApiError("Job offer not found or not authorized", 404));
-  }
+  try {
+    console.log("Deleting job offer with ID:", id);
 
-  res.status(200).json({ message: "Job offer deleted successfully" });
+    // Check if the job offer exists
+    const jobOffer = await JobOffer.findOne({ _id: id, user: user._id });
+    if (!jobOffer) {
+      console.warn(`JobOffer not found or not authorized for ID: ${id}`);
+      return next(new ApiError("Job offer not found or not authorized", 404));
+    }
+
+    console.log("JobOffer found:", jobOffer);
+
+    // Delete related SavedJobs
+    const deletedSavedJobs = await SavedJob.deleteMany({ jobOffer: id });
+    console.log(`Deleted SavedJobs: ${deletedSavedJobs.deletedCount}`);
+
+    // Delete related JobApplications
+    const deletedJobApplications = await JobApplication.deleteMany({ job: id });
+    console.log(`Deleted JobApplications: ${deletedJobApplications.deletedCount}`);
+
+    // Finally, delete the job offer
+    await jobOffer.deleteOne();
+    console.log("JobOffer deleted successfully.");
+
+    // Respond with the details of deleted items
+    res.status(200).json({
+      message: "Job offer deleted successfully",
+      details: {
+        deletedSavedJobs: deletedSavedJobs.deletedCount,
+        deletedJobApplications: deletedJobApplications.deletedCount,
+      },
+    });
+  } catch (error) {
+    console.error("Error deleting job offer:", error);
+    return next(new ApiError("Server error occurred while deleting job offer", 500));
+  }
 });
 
 
 
 /**
- * @Desc   : Get all job offers with pagination, search, and filtering
+ * @Desc   : Get all job offers with pagination, search, and filtering, default sorting by applicantCount and createdAt
  * @Route  : GET /api/job-offers
  * @Access : Private
  */
@@ -135,12 +187,9 @@ exports.getJobOffers = asyncHandler(async (req, res, next) => {
 
     const jobOffers = await JobOffer.find(query)
       .populate("categoryId", "name subcategories")
-      .sort({ createdAt: -1 }) // Sort by createdAt descending
-      .skip((pageNumber - 1) * limitNumber)
-      .limit(limitNumber)
-      .lean(); // Using lean() to get plain JavaScript objects
+      .lean();
 
-    // Get the applicant count for each job offer, including those with zero applicants
+    // Get the applicant count for each job offer
     const jobOfferIds = jobOffers.map((job) => job._id);
     const applicantCounts = await JobApplication.aggregate([
       { $match: { job: { $in: jobOfferIds }, status: "sent" } },
@@ -153,9 +202,10 @@ exports.getJobOffers = asyncHandler(async (req, res, next) => {
       const subcategory = category.subcategories.find(
         (sub) => sub._id.toString() === job.subcategoryId.toString()
       );
-      const applicantCount = applicantCounts.find(
-        (count) => count._id.toString() === job._id.toString()
-      )?.count || 0;
+      const applicantCount =
+        applicantCounts.find(
+          (count) => count._id.toString() === job._id.toString()
+        )?.count || 0;
 
       return {
         ...job,
@@ -166,11 +216,25 @@ exports.getJobOffers = asyncHandler(async (req, res, next) => {
       };
     });
 
+    // Sort by applicantCount (desc), then createdAt (desc)
+    jobOffersWithDetails.sort((a, b) => {
+      if (b.applicantCount === a.applicantCount) {
+        return new Date(b.createdAt) - new Date(a.createdAt); // Secondary sort by createdAt
+      }
+      return b.applicantCount - a.applicantCount; // Primary sort by applicantCount
+    });
+
+    // Paginate the sorted results
+    const paginatedJobOffers = jobOffersWithDetails.slice(
+      (pageNumber - 1) * limitNumber,
+      pageNumber * limitNumber
+    );
+
     const totalCount = await JobOffer.countDocuments(query);
     const company = await Company.findOne({ user: user._id });
 
     res.json({
-      jobOffers: jobOffersWithDetails,
+      jobOffers: paginatedJobOffers,
       totalPages: Math.ceil(totalCount / limitNumber),
       currentPage: pageNumber,
       company,
@@ -180,7 +244,6 @@ exports.getJobOffers = asyncHandler(async (req, res, next) => {
     res.status(500).json({ error: "Server Error" });
   }
 });
-
 
 /**
  * @Desc   : Get a single job offer by ID
@@ -221,8 +284,8 @@ exports.getJobOffer = asyncHandler(async (req, res, next) => {
       logoName: company
         ? `${process.env.BASE_URL}/companylogos/${company.logoName}`
         : null,
-      categoryId: undefined,
-      subcategoryId: undefined,
+      categoryId: subcategory.id,
+      subcategoryId: category.id,
     };
 
     res.status(200).json(jobOfferWithDetails);
@@ -254,24 +317,21 @@ exports.toggleJobOfferActive = asyncHandler(async (req, res, next) => {
   res.status(200).json(jobOffer);
 });
 
-
-
-
 /**
  * @Desc   : Get the most recently added job offers with company name and country
  * @Route  : @Get /api/job-offers/recent
  * @Access : Public
  */
 exports.getRecentJobOffersAdded = asyncHandler(async (req, res, next) => {
-  const { page = 1, limit = 6 } = req.query;
+  const { page = 1, limit = 10 } = req.query;
 
   const pageNumber = parseInt(page, 10) || 1;
   const limitNumber = parseInt(limit, 10) || 10;
 
   try {
     const totalJobOffers = await JobOffer.countDocuments();
-    const recentJobOffers = await JobOffer.find({active : true})
-      .sort({ createdAt: -1 })
+    const recentJobOffers = await JobOffer.find({ active: true })
+      .sort({ createdAt: -1, _id: -1 })
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber)
       .populate("categoryId", "name subcategories");
@@ -313,4 +373,3 @@ exports.getRecentJobOffersAdded = asyncHandler(async (req, res, next) => {
     next(new ApiError("Server Error", 500));
   }
 });
-

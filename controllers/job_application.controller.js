@@ -288,6 +288,7 @@ exports.getJobApplications = asyncHandler(async (req, res, next) => {
 
     const totalJobApplications = await JobApplication.countDocuments(query);
     const jobApplications = await JobApplication.find(query)
+    .sort( {createdAt: -1})
       .populate({
         path: "job",
         populate: { path: "categoryId", select: "name subcategories" },
@@ -298,6 +299,7 @@ exports.getJobApplications = asyncHandler(async (req, res, next) => {
     const applicationsWithDetails = await Promise.all(
       jobApplications.map(async (application) => {
         const jobOffer = application.job;
+
         const category = jobOffer.categoryId;
         const subcategory = category.subcategories.find(
           (sub) => sub._id.toString() === jobOffer.subcategoryId.toString()
@@ -408,7 +410,6 @@ exports.notifyApplicantReview = asyncHandler(async (req, res, next) => {
   }
 });
 
-
 /**
  * @Desc   : Get recent applicants for all job offers created by a recruiter
  * @Route  : GET /api/job-applications/recent
@@ -417,7 +418,7 @@ exports.notifyApplicantReview = asyncHandler(async (req, res, next) => {
 exports.getRecentApplicants = asyncHandler(async (req, res, next) => {
   try {
     const recruiterId = req.user._id; // Assuming `req.user` contains the authenticated recruiter's details
-    const { page = 1, limit = 5 } = req.query;
+    const { page = 1, limit = 5, search } = req.query; // Include `search` from query parameters
 
     const pageNumber = parseInt(page, 10) || 1;
     const limitNumber = parseInt(limit, 10) || 10;
@@ -425,8 +426,8 @@ exports.getRecentApplicants = asyncHandler(async (req, res, next) => {
 
     // Fetch all job offers created by this recruiter
     const jobOffers = await JobOffer.find({ user: recruiterId })
-      .populate('categoryId', 'name subcategories') // Populate category details
-      .select('_id categoryId subcategoryId'); // Include only relevant fields
+      .populate("categoryId", "name subcategories") // Populate category details
+      .select("_id categoryId subcategoryId"); // Include only relevant fields
 
     const jobOfferIds = jobOffers.map((offer) => offer._id);
 
@@ -439,35 +440,35 @@ exports.getRecentApplicants = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Query applications for the fetched job offers
-    const query = {status: 'sent', job: { $in: jobOfferIds } };
+    // Base query for applications
+    const query = { status: "sent", job: { $in: jobOfferIds } };
+
     const totalApplicants = await JobApplication.countDocuments(query);
 
     const applications = await JobApplication.find(query)
-      .sort( {createdAt: -1})
-      .populate('user', 'firstName lastName profileImg email phone address') // Populate user details
-      .skip(skip)
-      .limit(limitNumber)
-      .lean();
+      .sort({ createdAt: -1 })
+      .populate("user", "firstName lastName profileImg email phone address") // Populate user details
+      .lean(); // Fetch all records without pagination to filter in-app
 
     // Enhance application details
-    const applicationsWithDetails = await Promise.all(
+    let applicationsWithDetails = await Promise.all(
       applications.map(async (app) => {
         const user = app.user;
 
         // Find the corresponding job offer to get category and subcategory details
-        const jobOffer = jobOffers.find((offer) =>
-          offer._id.toString() === app.job.toString()
+        const jobOffer = jobOffers.find(
+          (offer) => offer._id.toString() === app.job.toString()
         );
 
-        if (!jobOffer) return app; // Fallback if no jobOffer is found (unlikely)
+        if (!jobOffer) return null; // Skip if no jobOffer is found (unlikely)
 
         const category = jobOffer.categoryId;
         const subcategory = category?.subcategories?.find(
           (sub) => sub._id.toString() === jobOffer.subcategoryId.toString()
         );
 
-        const jobTitle = subcategory?.name || 'Unknown Title'; 
+        const jobTitle = subcategory?.name || "Unknown Title";
+
         if (app.useProfile) {
           const [
             contactInfo,
@@ -551,14 +552,34 @@ exports.getRecentApplicants = asyncHandler(async (req, res, next) => {
       })
     );
 
+    // Filter applications based on the search term
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), "i");
+
+      applicationsWithDetails = applicationsWithDetails.filter((app) => {
+        const user = app.user;
+        return (
+          searchRegex.test(user.firstName) ||
+          searchRegex.test(user.lastName) ||
+          searchRegex.test(app.job)
+        );
+      });
+    }
+
+    // Paginate the filtered results
+    const paginatedApplications = applicationsWithDetails.slice(
+      skip,
+      skip + limitNumber
+    );
+
     res.status(200).json({
-      totalApplicants,
-      totalPages: Math.ceil(totalApplicants / limitNumber),
+      totalApplicants: applicationsWithDetails.length,
+      totalPages: Math.ceil(applicationsWithDetails.length / limitNumber),
       currentPage: pageNumber,
-      applications: applicationsWithDetails,
+      applications: paginatedApplications,
     });
   } catch (error) {
-    console.error('Error fetching recent applicants:', error);
-    next(new ApiError('Server Error', 500));
+    console.error("Error fetching recent applicants:", error);
+    next(new ApiError("Server Error", 500));
   }
 });

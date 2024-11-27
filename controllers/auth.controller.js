@@ -102,7 +102,7 @@ exports.registerUser = [
         country: req.body.country,
         role: req.body.role,
         expertise: JSON.parse(req.body.expertise),
-        password: req.hashedPassword,
+        password: req.body.password,
         profileImg: finalFileName,
         address: req.body.address,
       });

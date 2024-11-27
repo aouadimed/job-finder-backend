@@ -93,9 +93,10 @@ exports.getSavedJobs = asyncHandler(async (req, res, next) => {
       savedJobs.map(async (savedJob) => {
         const jobOffer = savedJob.jobOffer;
         const category = jobOffer.categoryId;
-        const subcategory = category.subcategories.find(
-          sub => sub._id.toString() === jobOffer.subcategoryId.toString()
+        const subcategory = category?.subcategories?.find(
+          (sub) => sub._id.toString() === jobOffer.subcategoryId
         );
+        
 
         const company = await Company.findOne({ user: jobOffer.user });
 
