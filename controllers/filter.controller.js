@@ -3,7 +3,6 @@ const JobOffer = require("../models/jobOffer.model");
 const Company = require("../models/company.model");
 const Category = require("../models/jobCategory.model");
 
-// Centralized Keywords
 const keywordConfig = {
   education: {
     highSchool: [
@@ -93,7 +92,6 @@ const keywordConfig = {
   },
 };
 
-// Utility: Generate Regex for Filtering
 const generateRegex = (keywords) =>
   keywords.map((keyword) => ({
     $or: [
