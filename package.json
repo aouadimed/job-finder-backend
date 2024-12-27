@@ -6,7 +6,7 @@
   "scripts": {
     "test": "npm test",
     "start:dev": "nodemon index.js",
-    "start": "yarn run start:dev" 
+    "start": "nodemon index.js" 
 
   },
   "author": "aouadi mohamed",
