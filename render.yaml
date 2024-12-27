@@ -17,7 +17,7 @@ services:
     branch: main  
     buildCommand: npm install
     preDeployCommand: npm run migrate
-    startCommand: npm start
+    startCommand: yarn run start:dev
     autoDeploy: true
     maxShutdownDelaySeconds: 120
     domains:

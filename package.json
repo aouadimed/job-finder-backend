@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "npm test",
-    "start:dev": "nodemon index.js"
+    "start:dev": "nodemon index.js",
+    "start": "yarn run start:dev" 
+
   },
   "author": "aouadi mohamed",
   "license": "ISC",
