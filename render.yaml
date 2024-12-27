@@ -1,0 +1,32 @@
+#################################################################
+# Render.yaml Example for Your Flutter and Node.js Project    #
+#################################################################
+
+previews:
+  generation: automatic # Enable preview environments
+
+# Web Services (Node.js Backend)
+services:
+  - type: web
+    runtime: node
+    name: backend-api
+    repo: https://github.com/aouadimed/job-finder-backend
+    numInstances: 3  
+    region: frankfurt 
+    plan: standard
+    branch: main  
+    buildCommand: npm install
+    preDeployCommand: npm run migrate
+    startCommand: npm start
+    autoDeploy: true
+    maxShutdownDelaySeconds: 120
+    domains:
+      - api.yourdomain.com
+    envVars:
+      - key: MONGO_DB_URI
+        value: mongodb+srv://aminesaadaoui:amine123456@consultapp.1qbhruh.mongodb.net/pfe
+      - key: JWT_SECRET
+
+ 
+
+
