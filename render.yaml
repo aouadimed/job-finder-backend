@@ -26,6 +26,8 @@ services:
       - key: MONGO_DB_URI
         value: mongodb+srv://aminesaadaoui:amine123456@consultapp.1qbhruh.mongodb.net/pfe
       - key: JWT_SECRET
+        generateValue: true  
+
 
  
 
